@@ -1,6 +1,7 @@
 import os
 import re
 import ast
+import math
 
 
 def import_stop_words():
@@ -118,42 +119,96 @@ def normalize(arr_tokens):
     return normal_out
 
 
+def generate_td_idf(inverted_indexes, dictionary):
+    td_idfs = {}
+    for key1 in inverted_indexes:
+        for file in inverted_indexes[key1]:
+            if file not in td_idfs.keys():
+                td_idfs[file[0]] = []
+    n = len(td_idfs)
+    idfs = {}
+    for word in dictionary:
+        inverted_index = inverted_indexes[word]
+        n_temp = len(inverted_index)
+        idfs[word] = math.log(n / n_temp)
+    for key in td_idfs:
+        for word in dictionary:
+            inverted_index = inverted_indexes[word]
+            files = {}
+            for file in inverted_index:
+                files[file[0]] = file[1]
+            if key in files:
+                td_idfs[key].append((1 + math.log(files[key] + 1)) * idfs[word])
+            else:
+                td_idfs[key].append((1 + math.log(1)) * idfs[word])
+    for key in td_idfs:
+        size = 0
+        for item in td_idfs[key]:
+            size += item ** 2
+        size = size ** 0.5
+        td_idfs[key] = [x / size for x in td_idfs[key]]
+    f = open("td_idf/td_idfs.txt", "w")
+    f.write(str(td_idfs))
+    f.close()
+
+
+def query_tf_idf(query, dictionary, inverted_indexes):
+    td_idf = []
+    idfs = {}
+    n = len(dictionary)
+    for word in dictionary:
+        inverted_index = inverted_indexes[word]
+        n_temp = len(inverted_index)
+        idfs[word] = math.log(n / n_temp)
+    for word in dictionary:
+        if word in query:
+            td_idf.append((1 + math.log(2)) * idfs[word])
+        else:
+            td_idf.append(0)
+    return td_idf
+
+
+def cosine_similarity(tf_idfs, query_idf):
+    output = {}
+    for key in tf_idfs:
+        score = 0
+        i = 0
+        for x in tf_idfs[key]:
+            score += x * query_idf[i]
+            i += 1
+        output[key] = score
+    return output
+
+
+def generate_champions_list(inverted_index):
+    champion_list = {}
+    for key in inverted_index:
+        for item in inverted_index[key]:
+            if key not in champion_list:
+                champion_list[key] = []
+            if item[1] >= 1:
+                champion_list[key] = (item[0], item[1])
+    print(champion_list)
+
 try:
-    f = open("Inverted_index/inverted.txt")
+    f = open('Inverted_index/inverted.txt')
+    inverted_index = ast.literal_eval(f.read())
+    f.close()
+    dictionary = list(inverted_index.keys())
+    f = open("td_idf/td_idfs.txt")
     # Do something with the file
 except IOError:
     print("please wait till generated")
     generate_inverted_index('docs', get_files_directories('docs'))
-    f = open("Inverted_index/inverted.txt")
-inverted_index = ast.literal_eval(f.read())
+    f = open('Inverted_index/inverted.txt')
+    inverted_index = ast.literal_eval(f.read())
+    dictionary = list(inverted_index.keys())
+    generate_td_idf(inverted_index, dictionary)
+    f = open("td_idf/td_idfs.txt")
+tf_idfs = ast.literal_eval(f.read())
 query = input('please enter a query:').split()
 query = {'query': query}
 queries = normalize(query)['query']
-
-if len(queries) == 1:
-    try:
-        docs = inverted_index[queries[0]]
-        for doc in docs:
-            print(doc[0])
-    except:
-        print('no result')
-else:
-    res = {}
-    for query in queries:
-        try:
-            res[query] = inverted_index[query]
-        except:
-            continue
-    final_res = {}
-    for query in queries:
-        try:
-            for result in res[query]:
-                if result[0] not in final_res.keys():
-                    final_res[result[0]] = 1
-                else:
-                    final_res[result[0]] += 1
-        except:
-            continue
-    sorted_keys = sorted(final_res, key=final_res.get, reverse=True)
-    for key in sorted_keys:
-        print(key)
+tf_idf_query = query_tf_idf(queries, dictionary, inverted_index)
+output = cosine_similarity(tf_idfs, tf_idf_query)
+print(output)
