@@ -4,6 +4,56 @@ import ast
 import math
 
 
+class MaxHeap:
+    def __init__(self):
+
+        self.heap_list = [[0, 0]]
+        self.current_size = 0
+
+    def sift_up(self, i):
+        while i // 2 > 0:
+            if self.heap_list[i][1] > self.heap_list[i // 2][1]:
+                self.heap_list[i], self.heap_list[i // 2] = self.heap_list[i // 2], self.heap_list[i]
+            i = i // 2
+
+    def insert(self, k):
+        self.heap_list.append(k)
+        self.current_size += 1
+        self.sift_up(self.current_size)
+
+    def sift_down(self, i):
+        while (i * 2) <= self.current_size:
+            mc = self.max_child(i)
+            if self.heap_list[i][1] < self.heap_list[mc][1]:
+                self.heap_list[i], self.heap_list[mc] = self.heap_list[mc], self.heap_list[i]
+            i = mc
+
+    def max_child(self, i):
+        if (i * 2) + 1 > self.current_size:
+            return i * 2
+        else:
+            if self.heap_list[i * 2] > self.heap_list[(i * 2) + 1]:
+                return i * 2
+            else:
+                return (i * 2) + 1
+
+    def delete_max(self):
+        if len(self.heap_list) == 1:
+            return 'Empty heap'
+
+        root = self.heap_list[1]
+
+        self.heap_list[1] = self.heap_list[self.current_size]
+
+        *self.heap_list, _ = self.heap_list
+
+        self.current_size -= 1
+
+        self.sift_down(1)
+
+        return root
+
+
 def import_stop_words():
     f = open('resources/stopwords.txt', 'r')
     stopwords = f.read().split('\n')
@@ -188,7 +238,10 @@ def generate_champions_list(inverted_index):
                 champion_list[key] = []
             if item[1] >= 1:
                 champion_list[key] = (item[0], item[1])
-    print(champion_list)
+    f = open("champion_list/champion_list.txt", "w")
+    f.write(str(champion_list))
+    f.close()
+
 
 try:
     f = open('Inverted_index/inverted.txt')
@@ -196,7 +249,9 @@ try:
     f.close()
     dictionary = list(inverted_index.keys())
     f = open("td_idf/td_idfs.txt")
-    # Do something with the file
+    tf_idfs = ast.literal_eval(f.read())
+    f = open('champion_list/champion_list.txt')
+    champion_list = ast.literal_eval(f.read())
 except IOError:
     print("please wait till generated")
     generate_inverted_index('docs', get_files_directories('docs'))
@@ -205,10 +260,26 @@ except IOError:
     dictionary = list(inverted_index.keys())
     generate_td_idf(inverted_index, dictionary)
     f = open("td_idf/td_idfs.txt")
-tf_idfs = ast.literal_eval(f.read())
+    tf_idfs = ast.literal_eval(f.read())
+    generate_champions_list(inverted_index)
+    f = open('champion_list/champion_list.txt')
+    champion_list = ast.literal_eval(f.read())
+
 query = input('please enter a query:').split()
 query = {'query': query}
 queries = normalize(query)['query']
 tf_idf_query = query_tf_idf(queries, dictionary, inverted_index)
+file_in_ch_list = []
+for x in queries:
+    if x in champion_list:
+        files = champion_list[x]
+        for file in files:
+            file_in_ch_list.append(file)
 output = cosine_similarity(tf_idfs, tf_idf_query)
-print(output)
+max_heap = MaxHeap()
+for x in output:
+    max_heap.insert([x, output[x]])
+
+k =10
+for i in range(k):
+    print(max_heap.delete_max())
